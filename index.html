@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartHome Nita – Remote Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
+<style>
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+  :root {
+    --bg:        #0B1E2D;
+    --card:      #112B3C;
+    --card2:     #0F2437;
+    --border:    rgba(0,174,239,0.15);
+    --accent:    #00AEEF;
+    --accent2:   #00E5FF;
+    --on-color:  #00E676;
+    --off-color: #FF5252;
+    --text:      #E0F4FF;
+    --sub:       #7BAFC4;
+    --shadow:    0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px;
+  }
+
+  @keyframes pulse     { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  @keyframes fadeUp    { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes spin      { to{transform:rotate(360deg)} }
+  @keyframes glow      { 0%,100%{box-shadow:0 0 6px var(--on-color)} 50%{box-shadow:0 0 18px var(--on-color)} }
+  @keyframes spinFan   { to{transform:rotate(360deg)} }
+  @keyframes flickerLamp { 0%,100%{opacity:1;transform:scale(1)} 45%{opacity:.75;transform:scale(.97)} 50%{opacity:.92} }
+  @keyframes bounceChg { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+  @keyframes glowTV    { 0%,100%{filter:drop-shadow(0 0 4px #00AEEF)} 50%{filter:drop-shadow(0 0 14px #00E5FF)} }
+  @keyframes glowLamp  { 0%,100%{filter:drop-shadow(0 0 6px #FFB300) drop-shadow(0 0 14px #FF8F00)} 50%{filter:drop-shadow(0 0 20px #FFD740) drop-shadow(0 0 30px #FF6F00)} }
+  @keyframes glowFan   { 0%,100%{filter:drop-shadow(0 0 4px #00AEEF)} 50%{filter:drop-shadow(0 0 14px #00E5FF)} }
+  @keyframes glowChg   { 0%,100%{filter:drop-shadow(0 0 4px #00E676)} 50%{filter:drop-shadow(0 0 14px #00FF88)} }
+  @keyframes cardPulse { 0%,100%{box-shadow:0 0 12px rgba(0,230,118,.2),0 0 0 1px rgba(0,230,118,.3)} 50%{box-shadow:0 0 24px rgba(0,230,118,.5),0 0 0 1px rgba(0,230,118,.6)} }
+  @keyframes scanTV    { 0%{transform:translateY(-100%)} 100%{transform:translateY(500%)} }
+
+  /* ===== HEADER ===== */
+  .header {
+    background: linear-gradient(135deg, #0D3550, #005F8A);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 16px;
+    position: relative;
+    animation: fadeUp .4s ease;
+    box-shadow: var(--shadow);
+  }
+
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+
+  .header h1 { font-size: 20px; font-weight: 700; letter-spacing: .3px; }
+  .header .sub { font-size: 12px; color: rgba(255,255,255,.7); margin-top: 2px; }
+
+  .conn-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: rgba(0,0,0,.25);
+    border: 1px solid rgba(255,255,255,.1);
+    white-space: nowrap;
+  }
+
+  .conn-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #888;
+    transition: background .3s;
+  }
+  .conn-dot.online  { background: var(--on-color);  animation: glow 2s infinite; }
+  .conn-dot.offline { background: var(--off-color); }
+  .conn-dot.connecting { background: #FFD740; animation: pulse .8s infinite; }
+
+  .clock-row { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .clock { font-size: 36px; font-weight: 800; letter-spacing: 3px; }
+  .clock-date { font-size: 13px; color: rgba(255,255,255,.75); }
+
+  .info-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+
+  .info-pill {
+    background: rgba(255,255,255,.12);
+    border-radius: 30px;
+    padding: 4px 12px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  /* ===== SECTION ===== */
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 16px;
+    margin-bottom: 16px;
+    animation: fadeUp .5s ease;
+    box-shadow: var(--shadow);
+  }
+
+  .section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ===== RELAY CARDS ===== */
+  .relay-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  @media(min-width:520px) {
+    .relay-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  .relay-card {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    transition: border-color .3s, box-shadow .3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Strip kiri hijau saat aktif */
+  .relay-card::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--on-color);
+    opacity: 0; transition: opacity .3s;
+  }
+  .relay-card.active::before { opacity: 1; }
+
+  .relay-card.active {
+    border-color: var(--on-color);
+    animation: cardPulse 2.5s ease infinite;
+  }
+
+  /* Kotak ilustrasi SVG */
+  .relay-illus {
+    width: 62px; height: 62px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 13px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.07);
+    overflow: visible;
+    transition: background .3s, border-color .3s;
+  }
+  .relay-card.active .relay-illus {
+    background: rgba(0,230,118,.06);
+    border-color: rgba(0,230,118,.25);
+  }
+  .relay-illus svg { width: 44px; height: 44px; overflow: visible; }
+
+  /* Kipas: baling-baling berputar cepat */
+  .relay-card.active .fan-blades {
+    animation: spinFan .65s linear infinite;
+    transform-origin: 22px 22px;
+  }
+  .relay-card.active .fan-svg { animation: glowFan 2s ease infinite; }
+
+  /* TV: layar hidup + garis scan */
+  .relay-card.active .tv-screen { fill: #071c38; }
+  .relay-card.active .tv-svg    { animation: glowTV 2s ease infinite; }
+  .tv-scan { opacity: 0; }
+  .relay-card.active .tv-scan   { opacity: 1; animation: scanTV 2.8s linear infinite; }
+
+  /* Charger: naik turun + petir glow */
+  .relay-card.active .chg-svg  { animation: bounceChg 1.3s ease infinite; }
+  .relay-card.active .chg-bolt { animation: glowChg 1.3s ease infinite; }
+
+  /* Lampu: flicker + aura kuning */
+  .relay-card.active .lamp-bulb { animation: flickerLamp 2.2s ease infinite; }
+  .relay-card.active .lamp-svg  { animation: glowLamp 2.2s ease infinite; }
+  .lamp-aura { opacity: 0; transition: opacity .4s; }
+  .relay-card.active .lamp-aura { opacity: 1; }
+
+  .relay-name { font-size: 11px; font-weight: 600; color: var(--sub); text-align: center; }
+
+  .relay-status {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 12px;
+    border-radius: 20px;
+    background: rgba(255,82,82,.15);
+    color: var(--off-color);
+    transition: all .3s;
+  }
+
+  .relay-status.on {
+    background: rgba(0,230,118,.15);
+    color: var(--on-color);
+    animation: pulse 1.8s infinite;
+  }
+
+  .relay-btns {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .relay-btns button {
+    flex: 1;
+    padding: 7px 4px;
+    border: none;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s;
+  }
+
+  .relay-btns button:active { transform: scale(.95); }
+  .relay-btns .b-on  { background: rgba(0,174,239,.2); color: var(--accent2); border: 1px solid rgba(0,174,239,.4); }
+  .relay-btns .b-off { background: rgba(255,82,82,.15); color: var(--off-color); border: 1px solid rgba(255,82,82,.3); }
+  .relay-btns .b-on:hover  { background: rgba(0,174,239,.35); }
+  .relay-btns .b-off:hover { background: rgba(255,82,82,.3); }
+
+  .timer-row {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+    margin-top: 2px;
+  }
+
+  .timer-row input {
+    flex: 1;
+    background: rgba(255,255,255,.06);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 11px;
+    padding: 6px 6px;
+    text-align: center;
+    min-width: 0;
+  }
+
+  .timer-row input:focus { outline: none; border-color: var(--accent); }
+
+  .timer-row button {
+    padding: 6px 10px;
+    background: rgba(0,174,239,.15);
+    border: 1px solid rgba(0,174,239,.3);
+    border-radius: 10px;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all .2s;
+  }
+
+  .timer-row button:hover { background: rgba(0,174,239,.3); }
+
+  .timer-countdown {
+    font-size: 10px;
+    color: #FFD740;
+    min-height: 14px;
+    text-align: center;
+  }
+
+  /* ===== ALL CONTROL ===== */
+  .all-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .all-row button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s;
+  }
+
+  .all-on  { background: rgba(0,230,118,.2); color: var(--on-color);  border: 1px solid rgba(0,230,118,.4) !important; }
+  .all-off { background: rgba(255,82,82,.15); color: var(--off-color); border: 1px solid rgba(255,82,82,.3) !important; }
+  .all-on:hover  { background: rgba(0,230,118,.35); }
+  .all-off:hover { background: rgba(255,82,82,.3); }
+
+  /* ===== LOG ===== */
+  .log-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+
+  .log-item:last-child { border-bottom: none; }
+  .log-msg  { font-weight: 600; margin-bottom: 3px; }
+  .log-meta { color: var(--sub); font-size: 10px; }
+
+  /* ===== SCHEDULE ===== */
+  .sched-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sched-add-btn {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 5px 12px;
+    border: 1px solid rgba(0,174,239,.35);
+    border-radius: 20px;
+    background: rgba(0,174,239,.08);
+    transition: .2s;
+  }
+  .sched-add-btn:hover { background: rgba(0,174,239,.18); }
+
+  .sched-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .sched-item:last-child { border-bottom: none; }
+
+  .sched-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .sched-dot.on  { background: var(--on-color);  box-shadow: 0 0 6px var(--on-color); }
+  .sched-dot.off { background: var(--off-color); box-shadow: 0 0 6px var(--off-color); }
+
+  .sched-body { flex: 1; min-width: 0; }
+  .sched-name { font-size: 13px; font-weight: 600; }
+  .sched-act  { font-size: 11px; color: var(--sub); margin-top: 2px; }
+
+  .sched-right { text-align: right; flex-shrink: 0; }
+  .sched-time  { font-size: 14px; font-weight: 700; }
+  .sched-rep   { font-size: 10px; color: var(--sub); }
+
+  .sched-del {
+    flex-shrink: 0; cursor: pointer;
+    width: 26px; height: 26px; border-radius: 8px;
+    background: rgba(255,82,82,.1); border: 1px solid rgba(255,82,82,.25);
+    color: var(--off-color); font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    transition: .2s;
+  }
+  .sched-del:hover { background: rgba(255,82,82,.25); }
+
+  .sched-empty {
+    text-align: center; padding: 16px 0;
+    color: var(--sub); font-size: 12px;
+  }
+
+  /* ===== MODAL SHEET ===== */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.65); z-index: 200;
+    align-items: flex-end; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal-sheet {
+    background: #0F2437;
+    border-radius: 22px 22px 0 0;
+    border: 1px solid var(--border);
+    padding: 20px 18px 36px;
+    width: 100%; max-width: 520px;
+    animation: slideUp .3s ease;
+    max-height: 90vh; overflow-y: auto;
+  }
+  @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+
+  .modal-handle {
+    width: 36px; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,.15); margin: 0 auto 18px;
+  }
+  .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 18px; }
+
+  .form-label {
+    font-size: 12px; font-weight: 600;
+    color: var(--sub); margin-bottom: 6px; display: block;
+  }
+  .form-input {
+    width: 100%; padding: 11px 14px; margin-bottom: 14px;
+    background: rgba(255,255,255,.06);
+    border: 1.5px solid var(--border);
+    border-radius: 12px; color: var(--text);
+    font-size: 14px; outline: none; transition: .2s;
+  }
+  .form-input:focus { border-color: var(--accent); }
+
+  .chip-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .chip {
+    padding: 7px 13px; border-radius: 20px;
+    background: rgba(255,255,255,.06);
+    border: 1.5px solid var(--border);
+    font-size: 12px; cursor: pointer; transition: .2s;
+    color: var(--text); user-select: none;
+  }
+  .chip.sel {
+    border-color: var(--accent);
+    background: rgba(0,174,239,.15);
+    color: var(--accent); font-weight: 600;
+  }
+
+  .btn-modal-save {
+    width: 100%; padding: 13px; border: none; border-radius: 14px;
+    background: linear-gradient(90deg, #005F8A, #00AEEF);
+    color: #fff; font-size: 15px; font-weight: 700;
+    cursor: pointer; margin-bottom: 8px; transition: .15s;
+  }
+  .btn-modal-save:active { opacity: .9; transform: scale(.98); }
+  .btn-modal-cancel {
+    width: 100%; padding: 10px; border: none;
+    background: none; color: var(--sub);
+    font-size: 13px; cursor: pointer;
+  }
+
+  /* ===== OFFLINE OVERLAY ===== */
+  .offline-banner {
+    display: none;
+    background: rgba(255,82,82,.15);
+    border: 1px solid rgba(255,82,82,.35);
+    border-radius: 14px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--off-color);
+    margin-bottom: 16px;
+    text-align: center;
+  }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: fixed;
+    bottom: 20px; left: 16px; right: 16px;
+    background: #1A3A50;
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 12px 20px;
+    border-radius: 30px;
+    text-align: center;
+    font-size: 13px;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s;
+    box-shadow: 0 4px 20px rgba(0,174,239,.3);
+  }
+
+  /* ===== SPINNER ===== */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-top">
+    <div>
+      <h1>🏠 SmartHome Nita</h1>
+      <div class="sub">Remote Dashboard · HiveMQ Cloud</div>
+    </div>
+    <div class="conn-badge">
+      <span class="conn-dot connecting" id="connDot"></span>
+      <span id="connText">Menghubungkan...</span>
+    </div>
+  </div>
+  <div class="clock-row">
+    <div class="clock" id="clockEl">--:--</div>
+    <div class="clock-date" id="dateEl">--</div>
+  </div>
+  <div class="info-row">
+    <div class="info-pill">📡 MQTT: HiveMQ Cloud</div>
+    <div class="info-pill" id="lastUpdatePill">🕐 Belum ada data</div>
+  </div>
+</div>
+
+<!-- OFFLINE BANNER -->
+<div class="offline-banner" id="offlineBanner">
+  ⚠️ Tidak terhubung ke broker MQTT. Pastikan internet aktif dan ESP32 menyala.
+</div>
+
+<!-- KONTROL SEMUA -->
+<div class="section">
+  <div class="section-title">🕹️ Kontrol Perangkat</div>
+  <div class="all-row">
+    <button class="all-on"  onclick="sendAll('ON')">⚡ Semua ON</button>
+    <button class="all-off" onclick="sendAll('OFF')">🔴 Semua OFF</button>
+  </div>
+  <div class="relay-grid" id="relayGrid">
+    <!-- Dirender oleh JS -->
+  </div>
+</div>
+
+<!-- JADWAL -->
+<div class="section">
+  <div class="sched-head">
+    <div class="section-title" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">📅 Jadwal Aktif</div>
+    <div class="sched-add-btn" onclick="openSchedModal()">＋ Tambah</div>
+  </div>
+  <div id="schedList"><div class="sched-empty">📭 Tidak ada jadwal aktif</div></div>
+</div>
+
+<!-- MODAL JADWAL -->
+<div class="modal-overlay" id="schedModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📅 Tambah Jadwal Otomatis</div>
+
+    <label class="form-label">⚡ Waktu ON <span style="font-weight:400;opacity:.6">(opsional)</span></label>
+    <input class="form-input" type="time" id="fTimeOn">
+
+    <label class="form-label">🔴 Waktu OFF <span style="font-weight:400;opacity:.6">(opsional)</span></label>
+    <input class="form-input" type="time" id="fTimeOff">
+
+    <label class="form-label">📱 Pilih Perangkat</label>
+    <div class="chip-group" id="chipGroup">
+      <div class="chip" data-ch="0" onclick="toggleChip(this)">❄️ Kipas Angin</div>
+      <div class="chip" data-ch="1" onclick="toggleChip(this)">📺 TV</div>
+      <div class="chip" data-ch="2" onclick="toggleChip(this)">📱 Charger HP</div>
+      <div class="chip" data-ch="3" onclick="toggleChip(this)">💡 Lampu</div>
+    </div>
+
+    <button class="btn-modal-save"   onclick="saveSched()">💾 Simpan Jadwal</button>
+    <button class="btn-modal-cancel" onclick="closeSchedModal()">Batal</button>
+  </div>
+</div>
+
+<!-- LOG -->
+<div class="section">
+  <div class="section-title">📋 Log Aktivitas</div>
+  <div id="logContainer">
+    <div style="color:var(--sub);font-size:12px;padding:8px 0;">📭 Menunggu data...</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== KONFIGURASI MQTT =====
+const MQTT_HOST = "2dce4d575dbb4cd0b98e0dfddf167d78.s1.eu.hivemq.cloud";
+const MQTT_PORT = 8884; // WebSocket port
+const MQTT_USER = "esp32rumah";
+const MQTT_PASS = "Nita1816";
+
+const TOPIC_STATUS  = "smarthome/nita/status";
+const TOPIC_CONTROL = "smarthome/nita/control";
+const TOPIC_LOG     = "smarthome/nita/log";
+
+// ===== STATE =====
+const relayNames = ["Kipas Angin", "TV", "Charger HP", "Lampu"];
+const relayIcons = ["❄️", "📺", "📱", "💡"];
+
+let relayState = [false, false, false, false];
+let relayTimer = [0, 0, 0, 0];
+let timerIntervals = [null, null, null, null];
+let logs = [];
+let client = null;
+let clockInterval = null;
+let espTime = null; // waktu dari ESP32
+
+// ===== SVG ILLUSTRATIONS =====
+const RELAY_SVG = [
+  // 0: Kipas Angin
+  `<svg class="fan-svg" viewBox="0 0 44 44" fill="none">
+    <g class="fan-blades">
+      <ellipse cx="12" cy="11" rx="9" ry="4" fill="#2979FF" opacity=".85" transform="rotate(-45 12 11)"/>
+      <ellipse cx="32" cy="11" rx="9" ry="4" fill="#448AFF" opacity=".85" transform="rotate(45 32 11)"/>
+      <ellipse cx="32" cy="33" rx="9" ry="4" fill="#2979FF" opacity=".85" transform="rotate(-45 32 33)"/>
+      <ellipse cx="12" cy="33" rx="9" ry="4" fill="#448AFF" opacity=".85" transform="rotate(45 12 33)"/>
+    </g>
+    <circle cx="22" cy="22" r="6" fill="#0F2437" stroke="#2979FF" stroke-width="2"/>
+    <circle cx="22" cy="22" r="2.5" fill="#2979FF"/>
+    <circle cx="22" cy="22" r="18" fill="none" stroke="#2979FF" stroke-width="1" opacity=".2"/>
+    <rect x="20" y="38" width="4" height="6" rx="2" fill="#2A3A5A"/>
+    <rect x="15" y="42" width="14" height="2" rx="1" fill="#2A3A5A"/>
+  </svg>`,
+
+  // 1: TV
+  `<svg class="tv-svg" viewBox="0 0 44 44" fill="none">
+    <rect x="2" y="5" width="40" height="26" rx="5" fill="#0D1520" stroke="#2979FF" stroke-width="1.5"/>
+    <rect x="5" y="8" width="34" height="20" rx="3" class="tv-screen" fill="#03080f"/>
+    <rect x="7" y="10" width="30" height="6" rx="2" fill="#0D2040" opacity=".8"/>
+    <rect x="14" y="20" width="16" height="2" rx="1" fill="#1A3A60" opacity=".7"/>
+    <rect x="17" y="24" width="10" height="2" rx="1" fill="#1A3A60" opacity=".4"/>
+    <rect x="5" y="8" width="34" height="4" rx="2" class="tv-scan" fill="rgba(0,174,239,.15)"/>
+    <circle cx="22" cy="34" r="2" fill="#2979FF"/>
+    <rect x="16" y="37" width="3" height="5" rx="1.5" fill="#2A3A5A"/>
+    <rect x="25" y="37" width="3" height="5" rx="1.5" fill="#2A3A5A"/>
+    <rect x="13" y="41" width="18" height="2" rx="1" fill="#2A3A5A"/>
+  </svg>`,
+
+  // 2: Charger HP
+  `<svg class="chg-svg" viewBox="0 0 44 44" fill="none">
+    <rect x="5" y="2"  width="14" height="10" rx="3" fill="#1A2A40" stroke="#3A4A6A" stroke-width="1"/>
+    <rect x="7" y="4"  width="10" height="6" rx="2" fill="#0D1520"/>
+    <rect x="8" y="5"  width="6"  height="3" rx="1" fill="#888" opacity=".5"/>
+    <path d="M12 12 Q12 14 12 16" stroke="#4A5A7A" stroke-width="2" stroke-linecap="round" fill="none"/>
+    <rect x="11" y="15" width="22" height="22" rx="7" fill="#2A3A5A" stroke="#3A4A6A" stroke-width="1.5"/>
+    <rect x="14" y="18" width="16" height="13" rx="3" fill="#1A2A40"/>
+    <polygon class="chg-bolt" points="22,20 17,28 21,28 19,36 27,25 23,25" fill="#FFB300"/>
+    <rect x="17" y="37" width="4" height="7" rx="2" fill="#5A6A8A"/>
+    <rect x="23" y="37" width="4" height="7" rx="2" fill="#5A6A8A"/>
+  </svg>`,
+
+  // 3: Lampu
+  `<svg class="lamp-svg" viewBox="0 0 44 44" fill="none">
+    <circle class="lamp-aura" cx="22" cy="24" r="16" fill="#FFB300" opacity=".12"/>
+    <circle class="lamp-aura" cx="22" cy="24" r="10" fill="#FFD740" opacity=".15"/>
+    <rect x="18" y="2" width="8" height="6"  rx="2" fill="#4A5A6A"/>
+    <rect x="19" y="8" width="6" height="4"  rx="1.5" fill="#3A4A5A"/>
+    <g class="lamp-bulb">
+      <ellipse cx="22" cy="25" rx="11" ry="13" fill="#FFF8E1" stroke="#FFB300" stroke-width="1.5"/>
+      <path d="M17 22 Q19.5 17 22 22 Q24.5 27 27 22" fill="none" stroke="#FF8F00" stroke-width="2" stroke-linecap="round"/>
+      <line x1="22" y1="22" x2="22" y2="29" stroke="#FF8F00" stroke-width="1.5" stroke-linecap="round"/>
+      <ellipse cx="22" cy="23" rx="7" ry="8" fill="#FFD740" opacity=".2"/>
+    </g>
+    <rect x="18" y="37" width="8" height="3" rx="1" fill="#8896A8" opacity=".8"/>
+    <rect x="19" y="40" width="6" height="2" rx="1" fill="#7A8898" opacity=".6"/>
+  </svg>`
+];
+
+// ===== RENDER RELAY CARDS =====
+function renderRelayGrid() {
+  document.getElementById('relayGrid').innerHTML = relayNames.map((name, i) => `
+    <div class="relay-card" id="card${i}">
+      <div class="relay-illus" id="rillus${i}">${RELAY_SVG[i]}</div>
+      <div class="relay-name">${name}</div>
+      <div class="relay-status" id="rstatus${i}">OFF</div>
+      <div class="relay-btns">
+        <button class="b-on"  onclick="sendCmd('CH${i}:ON')">ON</button>
+        <button class="b-off" onclick="sendCmd('CH${i}:OFF')">OFF</button>
+      </div>
+      <div class="timer-row">
+        <input id="timerInput${i}" type="number" inputmode="numeric" placeholder="Menit" min="1" max="999">
+        <button onclick="sendTimer(${i})">⏱ Set</button>
+      </div>
+      <div class="timer-countdown" id="countdown${i}"></div>
+    </div>
+  `).join('');
+}
+
+// ===== UPDATE RELAY UI =====
+function updateRelayUI(i, state, timerSec) {
+  relayState[i] = state;
+  relayTimer[i] = timerSec;
+
+  const card    = document.getElementById('card' + i);
+  const statusEl = document.getElementById('rstatus' + i);
+
+  if (state) {
+    card.classList.add('active');
+    statusEl.className = 'relay-status on';
+    statusEl.textContent = 'ON';
+  } else {
+    card.classList.remove('active');
+    statusEl.className = 'relay-status';
+    statusEl.textContent = 'OFF';
+  }
+
+  // Timer countdown
+  if (timerIntervals[i]) clearInterval(timerIntervals[i]);
+  if (timerSec > 0) {
+    let sisa = timerSec;
+    const el = document.getElementById('countdown' + i);
+    const tick = () => {
+      if (sisa <= 0) {
+        el.textContent = '';
+        clearInterval(timerIntervals[i]);
+        return;
+      }
+      let m = Math.floor(sisa / 60), s = sisa % 60;
+      el.textContent = `⏱ ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      sisa--;
+    };
+    tick();
+    timerIntervals[i] = setInterval(tick, 1000);
+  } else {
+    document.getElementById('countdown' + i).textContent = '';
+  }
+}
+
+// ===== RENDER LOG =====
+function renderLogs() {
+  const c = document.getElementById('logContainer');
+  if (logs.length === 0) {
+    c.innerHTML = '<div style="color:var(--sub);font-size:12px;padding:8px 0;">📭 Belum ada aktivitas</div>';
+    return;
+  }
+  c.innerHTML = logs.map(l => `
+    <div class="log-item">
+      <div class="log-msg">📌 ${l.message}</div>
+      <div class="log-meta">👤 ${l.source} · ⏱️ ${l.time}</div>
+    </div>
+  `).join('');
+}
+
+// ===== SEND MQTT =====
+function sendCmd(cmd) {
+  if (!client || !client.connected) {
+    showToast('⚠️ Tidak terhubung ke broker');
+    return;
+  }
+  client.publish(TOPIC_CONTROL, cmd);
+  showToast('📤 Perintah dikirim: ' + cmd);
+}
+
+function sendAll(state) {
+  sendCmd('ALL:' + state);
+}
+
+function sendTimer(i) {
+  const el  = document.getElementById('timerInput' + i);
+  const val = parseInt(el.value);
+  if (!val || val <= 0) { showToast('Masukkan menit yang valid'); return; }
+  sendCmd('CH' + i + ':TIMER:' + val);
+  el.value = '';
+  showToast('⏱ Timer ' + val + ' menit untuk ' + relayNames[i]);
+}
+
+// ===== TOAST =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => t.style.opacity = '0', 2500);
+}
+
+// ===== CONNECTION UI =====
+function setConnStatus(status) {
+  const dot  = document.getElementById('connDot');
+  const text = document.getElementById('connText');
+  const banner = document.getElementById('offlineBanner');
+
+  dot.className = 'conn-dot ' + status;
+
+  if (status === 'online') {
+    text.textContent = 'Terhubung';
+    banner.style.display = 'none';
+  } else if (status === 'offline') {
+    text.textContent = 'Terputus';
+    banner.style.display = 'block';
+  } else {
+    text.innerHTML = '<span class="spinner"></span>Menghubungkan...';
+    banner.style.display = 'none';
+  }
+}
+
+// ===== CLOCK =====
+function startClock() {
+  if (clockInterval) clearInterval(clockInterval);
+  clockInterval = setInterval(() => {
+    const now = new Date();
+    document.getElementById('clockEl').textContent =
+      String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+    document.getElementById('dateEl').textContent =
+      days[now.getDay()] + ', ' + now.getDate() + ' ' + months[now.getMonth()] + ' ' + now.getFullYear();
+  }, 1000);
+}
+
+// ===== MQTT CONNECT =====
+function connectMQTT() {
+  setConnStatus('connecting');
+
+  const url = `wss://${MQTT_HOST}:${MQTT_PORT}/mqtt`;
+
+  client = mqtt.connect(url, {
+    clientId:  'WebDash-' + Math.random().toString(16).substr(2, 8),
+    username:  MQTT_USER,
+    password:  MQTT_PASS,
+    clean:     true,
+    reconnectPeriod: 4000,
+    connectTimeout:  10000,
+  });
+
+  client.on('connect', () => {
+    console.log('MQTT Connected');
+    setConnStatus('online');
+    showToast('✅ Terhubung ke HiveMQ Cloud');
+    client.subscribe(TOPIC_STATUS);
+    client.subscribe(TOPIC_LOG);
+  });
+
+  client.on('message', (topic, payload) => {
+    const msg = payload.toString();
+    try {
+      const data = JSON.parse(msg);
+
+      if (topic === TOPIC_STATUS) {
+        // Update relay status
+        if (data.relays) {
+          data.relays.forEach((r, i) => {
+            updateRelayUI(i, !!r.state, r.timer || 0);
+          });
+        }
+        // Update time dari ESP32
+        if (data.time && data.time !== '--:--') {
+          document.getElementById('clockEl').textContent = data.time;
+        }
+        if (data.date && data.date !== '--') {
+          document.getElementById('dateEl').textContent = data.date;
+        }
+        // Last update
+        const now = new Date();
+        document.getElementById('lastUpdatePill').textContent =
+          '🕐 Update: ' + String(now.getHours()).padStart(2,'0') + ':' +
+          String(now.getMinutes()).padStart(2,'0') + ':' +
+          String(now.getSeconds()).padStart(2,'0');
+      }
+
+      if (topic === TOPIC_LOG) {
+        logs.unshift({
+          message: data.message || '-',
+          source:  data.source  || '-',
+          time:    data.time    || '--:--:--',
+        });
+        if (logs.length > 10) logs.pop();
+        renderLogs();
+      }
+    } catch(e) {
+      console.warn('Parse error:', e);
+    }
+  });
+
+  client.on('offline',    () => { setConnStatus('offline'); showToast('⚠️ Koneksi MQTT terputus'); });
+  client.on('reconnect',  () => { setConnStatus('connecting'); });
+  client.on('error', (err) => { console.error('MQTT Error:', err); setConnStatus('offline'); });
+}
+
+// ===== SCHEDULE =====
+let schedules = JSON.parse(localStorage.getItem('nita_sch') || '[]');
+
+function renderSched() {
+  const c = document.getElementById('schedList');
+  if (!schedules.length) {
+    c.innerHTML = '<div class="sched-empty">📭 Tidak ada jadwal aktif</div>';
+    return;
+  }
+  const rows = [];
+  schedules.forEach((s, idx) => {
+    s.chs.forEach(ch => {
+      if (s.ton)  rows.push({ name: relayNames[ch], act: 'Otomatis ON',  time: s.ton,  on: true,  idx });
+      if (s.toff) rows.push({ name: relayNames[ch], act: 'Otomatis OFF', time: s.toff, on: false, idx });
+    });
+  });
+  c.innerHTML = rows.map(r => `
+    <div class="sched-item">
+      <span class="sched-dot ${r.on ? 'on' : 'off'}"></span>
+      <div class="sched-body">
+        <div class="sched-name">${r.name}</div>
+        <div class="sched-act">${r.act}</div>
+      </div>
+      <div class="sched-right">
+        <div class="sched-time">${r.time}</div>
+        <div class="sched-rep">Setiap hari</div>
+      </div>
+      <div class="sched-del" onclick="delSched(${r.idx})" title="Hapus jadwal">✕</div>
+    </div>
+  `).join('');
+}
+
+function delSched(idx) {
+  schedules.splice(idx, 1);
+  localStorage.setItem('nita_sch', JSON.stringify(schedules));
+  renderSched();
+  showToast('🗑️ Jadwal dihapus');
+}
+
+function saveSched() {
+  const ton  = document.getElementById('fTimeOn').value;
+  const toff = document.getElementById('fTimeOff').value;
+  const chs  = [...document.querySelectorAll('#chipGroup .chip.sel')].map(c => parseInt(c.dataset.ch));
+  if (!ton && !toff) { showToast('⚠️ Isi minimal satu waktu (ON atau OFF)'); return; }
+  if (!chs.length)   { showToast('⚠️ Pilih minimal satu perangkat'); return; }
+  schedules.push({ ton: ton || null, toff: toff || null, chs });
+  localStorage.setItem('nita_sch', JSON.stringify(schedules));
+  renderSched();
+  closeSchedModal();
+  showToast('✅ Jadwal tersimpan');
+}
+
+function openSchedModal() {
+  document.getElementById('fTimeOn').value  = '';
+  document.getElementById('fTimeOff').value = '';
+  document.querySelectorAll('#chipGroup .chip').forEach(c => c.classList.remove('sel'));
+  document.getElementById('schedModal').classList.add('open');
+}
+
+function closeSchedModal() {
+  document.getElementById('schedModal').classList.remove('open');
+}
+
+function toggleChip(el) { el.classList.toggle('sel'); }
+
+document.getElementById('schedModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('schedModal'))
+    closeSchedModal();
+});
+
+// Cek jadwal setiap 30 detik
+setInterval(() => {
+  const n = new Date();
+  const hm = String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+  schedules.forEach(s => {
+    if (s.ton  === hm) s.chs.forEach(i => sendCmd('CH' + i + ':ON'));
+    if (s.toff === hm) s.chs.forEach(i => sendCmd('CH' + i + ':OFF'));
+  });
+}, 30000);
+
+// ===== INIT =====
+renderRelayGrid();
+renderSched();
+startClock();
+connectMQTT();
+</script>
+</body>
+</html>
