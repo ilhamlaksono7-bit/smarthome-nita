@@ -3,133 +3,652 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SmartHome Nita - Test</title>
+<title>SmartHome Nita – Premium Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-  body {
-    font-family: Arial;
-    background: #0B1E2D;
-    color: white;
-    padding: 20px;
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+  /* Light Mode (Default) */
+  :root {
+    --bg: #f0f2f5;
+    --bg-gradient: linear-gradient(135deg, #e8ecf1 0%, #dce1e8 100%);
+    --card: #ffffff;
+    --card2: #f8f9fa;
+    --border: rgba(0,0,0,0.08);
+    --accent: #0077b6;
+    --accent2: #0096c7;
+    --on-color: #00c853;
+    --off-color: #d32f2f;
+    --text: #1a1a2e;
+    --sub: #6c757d;
+    --shadow: 0 4px 20px rgba(0,0,0,0.08);
+    --pending: #e67700;
+    --header-gradient: linear-gradient(135deg, #0077b6, #0096c7);
+    --header-text: #ffffff;
   }
-  button {
-    padding: 10px 20px;
-    margin: 5px;
+
+  /* Dark Mode */
+  body.dark {
+    --bg: #0B1E2D;
+    --bg-gradient: linear-gradient(135deg, #0B1E2D 0%, #06121a 100%);
+    --card: #112B3C;
+    --card2: #0F2437;
+    --border: rgba(0,174,239,0.15);
+    --accent: #00AEEF;
+    --accent2: #00E5FF;
+    --on-color: #00E676;
+    --off-color: #FF5252;
+    --text: #E0F4FF;
+    --sub: #7BAFC4;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --pending: #FFD740;
+    --header-gradient: linear-gradient(135deg, #0D3550, #005F8A);
+    --header-text: #E0F4FF;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-gradient);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px;
+    transition: all 0.3s ease;
+  }
+
+  /* Theme Toggle */
+  .theme-toggle {
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 40px;
+    padding: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+  }
+  .theme-icon {
     font-size: 16px;
+    padding: 4px 8px;
+    border-radius: 30px;
+    transition: all 0.3s ease;
+  }
+  .theme-icon.active {
+    background: rgba(255,255,255,0.3);
+    transform: scale(1.1);
+  }
+
+  /* Header */
+  .header {
+    background: var(--header-gradient);
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .header h1 { font-size: 20px; font-weight: 700; color: var(--header-text); }
+  .sub { font-size: 12px; color: rgba(255,255,255,.7); }
+  .conn-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: rgba(0,0,0,.25);
+    border: 1px solid rgba(255,255,255,.1);
     cursor: pointer;
   }
-  .relay {
-    background: #112B3C;
-    padding: 15px;
-    margin: 10px 0;
-    border-radius: 10px;
+  .conn-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    transition: all 0.3s;
   }
-  .status {
-    display: inline-block;
-    padding: 5px 10px;
-    border-radius: 5px;
-    margin-left: 10px;
+  .conn-dot.online { background: #00E676; animation: glow 2s infinite; }
+  .conn-dot.offline { background: #FF5252; }
+  .conn-dot.connecting { background: #FFD740; animation: pulse 0.8s infinite; }
+  .clock { font-size: 36px; font-weight: 800; letter-spacing: 3px; color: var(--header-text); }
+  .clock-date { font-size: 13px; color: rgba(255,255,255,.75); }
+
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 0 5px var(--on-color); }
+    50% { box-shadow: 0 0 20px var(--on-color); }
   }
-  .on { background: green; }
-  .off { background: red; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.05); }
+  }
+  @keyframes iconBounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2) rotate(5deg); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 16px;
+    margin-bottom: 16px;
+    animation: fadeUp 0.5s ease;
+    box-shadow: var(--shadow);
+    transition: all 0.3s ease;
+  }
+  .section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: var(--card2);
+    border-radius: 16px;
+    padding: 12px;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+  .stat-value { font-size: 24px; font-weight: 700; color: var(--accent2); }
+  .stat-label { font-size: 10px; color: var(--sub); margin-top: 4px; }
+
+  /* Relay Grid */
+  .relay-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .relay-card {
+    background: var(--card2);
+    border: 2px solid var(--border);
+    border-radius: 20px;
+    padding: 16px;
+    transition: all 0.3s ease;
+  }
+  .relay-card.active { border-color: var(--on-color); background: linear-gradient(135deg, var(--card2), rgba(0,230,118,0.1)); }
+  .relay-card.off { border-color: var(--off-color); }
+  .relay-icon { font-size: 48px; text-align: center; margin-bottom: 10px; transition: all 0.3s; }
+  .relay-icon.animate { animation: iconBounce 0.5s ease; }
+  .relay-name { font-size: 14px; font-weight: 600; text-align: center; margin-bottom: 8px; }
+  .relay-status { text-align: center; font-size: 12px; font-weight: 700; padding: 4px; border-radius: 20px; margin: 8px 0; }
+  .relay-status.on { color: var(--on-color); background: rgba(0,230,118,0.1); }
+  .relay-status.off { color: var(--off-color); background: rgba(255,82,82,0.1); }
+
+  /* Timer & Buttons */
+  .btn-group { display: flex; gap: 10px; margin: 12px 0; }
+  button { flex: 1; padding: 10px; border: none; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+  button:active { transform: scale(0.95); }
+  .btn-on { background: linear-gradient(135deg, #00E676, #00C853); color: white; }
+  .btn-off { background: linear-gradient(135deg, #FF5252, #D32F2F); color: white; }
+  .btn-timer { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+  .timer-row { display: flex; gap: 8px; margin: 10px 0; }
+  .timer-row input { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 12px; padding: 8px; text-align: center; }
+  .timer-countdown { text-align: center; font-size: 13px; font-weight: 700; color: var(--pending); margin-top: 8px; padding: 6px; background: rgba(255,215,64,0.1); border-radius: 10px; }
+
+  /* Schedule */
+  .schedule-list { max-height: 300px; overflow-y: auto; }
+  .schedule-item {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    border-left: 4px solid var(--accent);
+  }
+  .schedule-time { font-size: 14px; font-weight: 700; color: var(--accent2); }
+  .schedule-details { font-size: 11px; color: var(--sub); }
+  .btn-delete-schedule { background: rgba(255,82,82,0.2); border: 1px solid var(--off-color); color: var(--off-color); padding: 6px 12px; font-size: 11px; border-radius: 8px; cursor: pointer; }
+  
+  .add-schedule { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .schedule-form-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .schedule-form-row input, .schedule-form-row select { flex: 1; padding: 8px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; color: var(--text); }
+  .schedule-device-select { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .schedule-device-select label { display: flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 12px; background: rgba(255,255,255,0.05); border-radius: 20px; cursor: pointer; }
+  .repeat-option { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 10px; }
+  .btn-add-schedule { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; padding: 10px; width: 100%; margin-top: 8px; }
+
+  /* Chart */
+  .chart-container { background: var(--card2); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
+  canvas { max-height: 250px; width: 100%; }
+
+  /* Logs */
+  .log-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .log-msg { font-weight: 600; margin-bottom: 3px; }
+  .log-meta { color: var(--sub); font-size: 10px; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
+    background: var(--card);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 12px 20px;
+    border-radius: 30px;
+    text-align: center;
+    font-size: 13px;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .empty-state { text-align: center; padding: 20px; color: var(--sub); font-size: 12px; }
 </style>
 </head>
 <body>
-<h1>🏠 SmartHome Nita - Test Mode</h1>
-<div id="status-mqtt">Menghubungkan...</div>
-<hr>
 
-<div id="relays"></div>
+<div class="header">
+  <div class="header-top">
+    <div>
+      <h1>🏠 SmartHome Nita</h1>
+      <div class="sub">Premium Dashboard</div>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <div class="theme-toggle" onclick="toggleTheme()">
+        <span class="theme-icon" id="lightIcon">☀️</span>
+        <span class="theme-icon" id="darkIcon">🌙</span>
+      </div>
+      <div class="conn-badge" onclick="testConnection()">
+        <span class="conn-dot connecting" id="connDot"></span>
+        <span id="connText">Menghubungkan...</span>
+      </div>
+    </div>
+  </div>
+  <div class="clock-row">
+    <div class="clock" id="clockEl">--:--</div>
+    <div class="clock-date" id="dateEl">--</div>
+  </div>
+</div>
 
-<div id="log" style="margin-top:20px; background:#0F2437; padding:10px; border-radius:10px;"></div>
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-value" id="totalSchedules">0</div><div class="stat-label">Total Jadwal</div></div>
+  <div class="stat-card"><div class="stat-value" id="repeatSchedules">0</div><div class="stat-label">Jadwal Berulang</div></div>
+  <div class="stat-card"><div class="stat-value" id="activeRelays">0</div><div class="stat-label">Perangkat ON</div></div>
+</div>
+
+<div class="section">
+  <div class="section-title">🎮 Kontrol Perangkat</div>
+  <div class="relay-grid" id="relayGrid"></div>
+</div>
+
+<div class="chart-container">
+  <div class="section-title">📊 Durasi Penggunaan Perangkat (Hari Ini)</div>
+  <canvas id="durationChart"></canvas>
+</div>
+
+<div class="section">
+  <div class="section-title">⏰ Penjadwalan Otomatis</div>
+  <div id="scheduleList" class="schedule-list"></div>
+  <div class="add-schedule">
+    <div class="schedule-form-row">
+      <input type="time" id="scheduleTime" step="60">
+      <select id="scheduleAction"><option value="ON">🔛 ON</option><option value="OFF">🔴 OFF</option></select>
+    </div>
+    <div class="schedule-device-select" id="scheduleDevices">
+      <label><input type="checkbox" value="0"> ❄️ Kipas</label>
+      <label><input type="checkbox" value="1"> 📺 TV</label>
+      <label><input type="checkbox" value="2"> 📱 Charger</label>
+      <label><input type="checkbox" value="3"> 💡 Lampu</label>
+    </div>
+    <div class="repeat-option"><label><input type="checkbox" id="scheduleRepeat"> 🔄 Jadwal berulang setiap hari</label></div>
+    <button class="btn-add-schedule" onclick="addSchedule()">➕ Tambah Jadwal</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">📋 Log Aktivitas</div>
+  <div id="logContainer"></div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <script>
+// ===== KONFIGURASI MQTT =====
 const MQTT_HOST = "2dce4d575dbb4cd0b98e0dfddf167d78.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const MQTT_USER = "esp32rumah";
 const MQTT_PASS = "Nita1816";
 
-const TOPIC_CONTROL = "smarthome/nita/control";
 const TOPIC_STATUS = "smarthome/nita/status";
+const TOPIC_CONTROL = "smarthome/nita/control";
+const TOPIC_LOG = "smarthome/nita/log";
 
+// ===== DATA =====
 const relayNames = ["Kipas Angin", "TV", "Charger HP", "Lampu"];
-let relayState = [false, false, false, false];
-let client = null;
+const relayIcons = ["❄️", "📺", "📱", "💡"];
 
-function addLog(msg) {
-  const logDiv = document.getElementById('log');
-  const time = new Date().toLocaleTimeString();
-  logDiv.innerHTML = `<div>[${time}] ${msg}</div>` + logDiv.innerHTML;
-  if (logDiv.children.length > 10) logDiv.removeChild(logDiv.lastChild);
+let relayState = [false, false, false, false];
+let relayTimer = [0, 0, 0, 0];
+let timerIntervals = [null, null, null, null];
+let logs = [];
+let client = null;
+let schedules = [];
+let durationChart = null;
+let relayDuration = [0, 0, 0, 0];
+let relayStartTime = [null, null, null, null];
+
+// ===== THEME =====
+function initTheme() {
+  const saved = localStorage.getItem('smarthome_theme');
+  if (saved === 'dark') {
+    document.body.classList.add('dark');
+    document.getElementById('darkIcon').classList.add('active');
+  } else {
+    document.getElementById('lightIcon').classList.add('active');
+  }
+}
+function toggleTheme() {
+  document.body.classList.toggle('dark');
+  const isDark = document.body.classList.contains('dark');
+  localStorage.setItem('smarthome_theme', isDark ? 'dark' : 'light');
+  if (isDark) {
+    document.getElementById('darkIcon').classList.add('active');
+    document.getElementById('lightIcon').classList.remove('active');
+  } else {
+    document.getElementById('lightIcon').classList.add('active');
+    document.getElementById('darkIcon').classList.remove('active');
+  }
+  showToast(isDark ? '🌙 Mode Gelap aktif' : '☀️ Mode Terang aktif');
 }
 
-function renderRelays() {
-  const container = document.getElementById('relays');
-  container.innerHTML = relayNames.map((name, i) => `
-    <div class="relay">
-      <strong>${name}</strong>
-      <span class="status ${relayState[i] ? 'on' : 'off'}">${relayState[i] ? 'ON' : 'OFF'}</span>
-      <br>
-      <button onclick="sendCmd('CH${i}:ON')">🔛 ON</button>
-      <button onclick="sendCmd('CH${i}:OFF')">🔴 OFF</button>
-      <button onclick="sendCmd('CH${i}:TIMER:5')">⏱ Timer 5 menit</button>
+// ===== UI FUNCTIONS =====
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  setTimeout(() => toast.style.opacity = '0', 2500);
+}
+
+function addLog(message, source) {
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  logs.unshift({ message, source, time: timeStr });
+  if (logs.length > 20) logs.pop();
+  const container = document.getElementById('logContainer');
+  if (logs.length === 0) {
+    container.innerHTML = '<div class="empty-state">📭 Belum ada aktivitas</div>';
+  } else {
+    container.innerHTML = logs.slice(0, 15).map(l => `
+      <div class="log-item">
+        <div class="log-msg">📌 ${l.message}</div>
+        <div class="log-meta">👤 ${l.source} · ⏱️ ${l.time}</div>
+      </div>
+    `).join('');
+  }
+}
+
+function updateStats() {
+  document.getElementById('totalSchedules').textContent = schedules.length;
+  document.getElementById('repeatSchedules').textContent = schedules.filter(s => s.repeat).length;
+  document.getElementById('activeRelays').textContent = relayState.filter(s => s).length;
+}
+
+function renderRelayGrid() {
+  const grid = document.getElementById('relayGrid');
+  grid.innerHTML = relayNames.map((name, i) => `
+    <div class="relay-card ${relayState[i] ? 'active' : 'off'}" id="card${i}">
+      <div class="relay-icon" id="icon${i}">${relayIcons[i]}</div>
+      <div class="relay-name">${name}</div>
+      <div class="relay-status ${relayState[i] ? 'on' : 'off'}" id="rstatus${i}">${relayState[i] ? '● ON' : '○ OFF'}</div>
+      <div class="btn-group">
+        <button class="btn-on" onclick="sendCmd('CH${i}:ON')">🔛 ON</button>
+        <button class="btn-off" onclick="sendCmd('CH${i}:OFF')">🔴 OFF</button>
+      </div>
+      <div class="timer-row">
+        <input id="timerInput${i}" type="number" placeholder="Menit" min="1" max="999">
+        <button class="btn-timer" onclick="sendTimer(${i})">⏱ Set Timer</button>
+      </div>
+      <div class="timer-countdown" id="countdown${i}"></div>
     </div>
   `).join('');
 }
 
-function sendCmd(cmd) {
+function updateRelayUI(i, state, timerSec) {
+  console.log(`Update Relay ${i}: state=${state}, timer=${timerSec}`);
+  
+  const oldState = relayState[i];
+  relayState[i] = state;
+  relayTimer[i] = timerSec;
+  
+  const card = document.getElementById(`card${i}`);
+  const statusEl = document.getElementById(`rstatus${i}`);
+  const iconEl = document.getElementById(`icon${i}`);
+  
+  if (card) {
+    if (state) {
+      card.classList.add('active');
+      card.classList.remove('off');
+    } else {
+      card.classList.remove('active');
+      card.classList.add('off');
+    }
+  }
+  
+  if (statusEl) {
+    statusEl.className = `relay-status ${state ? 'on' : 'off'}`;
+    statusEl.textContent = state ? '● ON' : '○ OFF';
+  }
+  
+  if (state && !oldState && iconEl) {
+    iconEl.classList.add('animate');
+    setTimeout(() => iconEl.classList.remove('animate'), 500);
+  }
+  
+  // Timer countdown
+  if (timerIntervals[i]) clearInterval(timerIntervals[i]);
+  const countdownEl = document.getElementById(`countdown${i}`);
+  if (timerSec > 0 && countdownEl) {
+    let remaining = timerSec;
+    const updateTimer = () => {
+      if (remaining <= 0) {
+        countdownEl.textContent = '';
+        clearInterval(timerIntervals[i]);
+        timerIntervals[i] = null;
+      } else {
+        const m = Math.floor(remaining / 60);
+        const s = remaining % 60;
+        countdownEl.textContent = `⏱️ Timer: ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        remaining--;
+      }
+    };
+    updateTimer();
+    timerIntervals[i] = setInterval(updateTimer, 1000);
+  } else if (countdownEl) {
+    countdownEl.textContent = '';
+  }
+  
+  updateStats();
+}
+
+function sendCmd(cmd, showNotif = true) {
   if (!client || !client.connected) {
-    addLog('❌ Tidak terhubung ke MQTT!');
+    showToast('⚠️ Tidak terhubung ke broker');
     return;
   }
   client.publish(TOPIC_CONTROL, cmd);
-  addLog(`📤 Perintah dikirim: ${cmd}`);
+  if (showNotif) {
+    showToast('📤 Perintah dikirim: ' + cmd);
+  }
+  addLog(`Perintah: ${cmd}`, "Dashboard");
+}
+
+function sendTimer(i) {
+  const input = document.getElementById(`timerInput${i}`);
+  const minutes = parseInt(input.value);
+  if (!minutes || minutes <= 0) {
+    showToast('Masukkan menit yang valid');
+    return;
+  }
+  sendCmd(`CH${i}:TIMER:${minutes}`);
+  input.value = '';
+  showToast(`⏱️ Timer ${minutes} menit untuk ${relayNames[i]}`);
+}
+
+// ===== SCHEDULE FUNCTIONS =====
+function loadSchedules() {
+  const saved = localStorage.getItem('smarthome_schedules_v2');
+  if (saved) schedules = JSON.parse(saved);
+  renderSchedules();
+  updateStats();
+}
+function saveSchedules() {
+  localStorage.setItem('smarthome_schedules_v2', JSON.stringify(schedules));
+  renderSchedules();
+  updateStats();
+}
+function renderSchedules() {
+  const container = document.getElementById('scheduleList');
+  if (schedules.length === 0) {
+    container.innerHTML = '<div class="empty-state">📭 Belum ada jadwal</div>';
+    return;
+  }
+  container.innerHTML = schedules.map(s => `
+    <div class="schedule-item">
+      <div>
+        <div class="schedule-time">⏰ ${s.time} ${s.action === 'ON' ? '🔛 ON' : '🔴 OFF'} ${s.repeat ? '🔄 Berulang' : '📅 Sekali'}</div>
+        <div class="schedule-details">📱 ${s.devices.map(d => relayNames[d]).join(', ')}</div>
+      </div>
+      <button class="btn-delete-schedule" onclick="deleteSchedule(${s.id})">🗑️ Hapus</button>
+    </div>
+  `).join('');
+}
+function deleteSchedule(id) {
+  schedules = schedules.filter(s => s.id !== id);
+  saveSchedules();
+  showToast('🗑️ Jadwal dihapus');
+}
+function addSchedule() {
+  const timeInput = document.getElementById('scheduleTime');
+  const action = document.getElementById('scheduleAction').value;
+  const checkboxes = document.querySelectorAll('#scheduleDevices input:checked');
+  const repeat = document.getElementById('scheduleRepeat').checked;
+  if (!timeInput.value) { showToast('Pilih waktu'); return; }
+  if (checkboxes.length === 0) { showToast('Pilih perangkat'); return; }
+  const devices = Array.from(checkboxes).map(cb => parseInt(cb.value));
+  schedules.push({ id: Date.now(), time: timeInput.value, action, devices, repeat });
+  saveSchedules();
+  timeInput.value = '';
+  checkboxes.forEach(cb => cb.checked = false);
+  document.getElementById('scheduleRepeat').checked = false;
+  showToast('✅ Jadwal ditambahkan');
+}
+function checkSchedules() {
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  schedules.forEach(s => {
+    if (s.time === currentTime) {
+      s.devices.forEach(d => sendCmd(`CH${d}:${s.action}`, false));
+      addLog(`Jadwal ${s.action} untuk ${s.devices.map(d => relayNames[d]).join(', ')} pukul ${s.time}`, "Jadwal");
+    }
+  });
+}
+
+// ===== CHART =====
+function initChart() {
+  const ctx = document.getElementById('durationChart').getContext('2d');
+  durationChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: relayNames, datasets: [{ label: 'Durasi (menit)', data: [0,0,0,0], backgroundColor: 'rgba(0,174,239,0.6)', borderRadius: 8 }] },
+    options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#E0F4FF' } } } }
+  });
+}
+
+// ===== MQTT =====
+function setConnStatus(status) {
+  const dot = document.getElementById('connDot');
+  const text = document.getElementById('connText');
+  dot.className = `conn-dot ${status}`;
+  if (status === 'online') text.textContent = 'Terhubung';
+  else if (status === 'offline') text.textContent = 'Terputus';
+  else text.textContent = 'Menghubungkan...';
+}
+
+function testConnection() {
+  if (client && client.connected) showToast('✅ Koneksi sehat');
+  else showToast('⚠️ Koneksi terputus');
 }
 
 function connectMQTT() {
+  setConnStatus('connecting');
   const url = `wss://${MQTT_HOST}:${MQTT_PORT}/mqtt`;
-  addLog(`🔄 Menghubungkan ke ${MQTT_HOST}...`);
-  
   client = mqtt.connect(url, {
-    clientId: 'TestDash-' + Math.random().toString(16).substr(2, 8),
+    clientId: 'WebDash-' + Math.random().toString(16).substr(2, 8),
     username: MQTT_USER,
     password: MQTT_PASS,
+    reconnectPeriod: 4000,
   });
-  
   client.on('connect', () => {
-    addLog('✅ MQTT Terhubung!');
-    document.getElementById('status-mqtt').innerHTML = '✅ Terhubung ke HiveMQ';
+    setConnStatus('online');
+    showToast('✅ Terhubung ke HiveMQ');
     client.subscribe(TOPIC_STATUS);
+    client.subscribe(TOPIC_LOG);
   });
-  
-  client.on('message', (topic, msg) => {
-    const pesan = msg.toString();
-    addLog(`📩 Terima dari ${topic}: ${pesan.substring(0, 100)}`);
-    
+  client.on('message', (topic, payload) => {
+    const msg = payload.toString();
+    console.log(`MQTT message: ${topic} - ${msg.substring(0, 200)}`);
     try {
-      const data = JSON.parse(pesan);
-      if (data.relays) {
+      const data = JSON.parse(msg);
+      if (topic === TOPIC_STATUS && data.relays) {
         data.relays.forEach((r, i) => {
-          relayState[i] = r.state;
+          updateRelayUI(i, r.state, r.timer || 0);
         });
-        renderRelays();
-        addLog(`✅ Status relay diupdate: ${relayState.map(s => s ? 'ON' : 'OFF').join(', ')}`);
       }
-    } catch(e) {
-      addLog(`⚠️ Gagal parse JSON: ${e.message}`);
-    }
+      if (topic === TOPIC_LOG && data.message) {
+        addLog(data.message, data.source || 'ESP32');
+      }
+    } catch(e) { console.warn('Parse error:', e); }
   });
-  
-  client.on('error', (err) => {
-    addLog(`❌ MQTT Error: ${err.message}`);
-  });
-  
-  client.on('offline', () => {
-    addLog('⚠️ MQTT Offline');
-  });
+  client.on('offline', () => setConnStatus('offline'));
+  client.on('error', (err) => { console.error('MQTT Error:', err); setConnStatus('offline'); });
 }
 
-renderRelays();
+// ===== CLOCK =====
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clockEl').textContent = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  document.getElementById('dateEl').textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+setInterval(checkSchedules, 60000);
+
+// ===== INIT =====
+renderRelayGrid();
+initChart();
+loadSchedules();
+initTheme();
 connectMQTT();
 </script>
 </body>
