@@ -18,8 +18,8 @@
     --border: rgba(0,0,0,0.08);
     --accent: #0077b6;
     --accent2: #0096c7;
-    --on-color: #00c853;
-    --off-color: #d32f2f;
+    --on-color: #3bf2ff;
+    --off-color: #ff6d6d;
     --text: #1a1a2e;
     --sub: #6c757d;
     --shadow: 0 4px 20px rgba(0,0,0,0.08);
@@ -37,8 +37,8 @@
     --border: rgba(0,174,239,0.15);
     --accent: #00AEEF;
     --accent2: #00E5FF;
-    --on-color: #00E676;
-    --off-color: #FF5252;
+    --on-color: #45caff;
+    --off-color: #ff6d6d;
     --text: #E0F4FF;
     --sub: #7BAFC4;
     --shadow: 0 4px 24px rgba(0,0,0,0.4);
@@ -202,9 +202,9 @@
   .btn-group { display: flex; gap: 10px; margin: 12px 0; }
   button { flex: 1; padding: 10px; border: none; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
   button:active { transform: scale(0.95); }
-  .btn-on { background: linear-gradient(135deg, #00E676, #00C853); color: white; }
-  .btn-off { background: linear-gradient(135deg, #FF5252, #D32F2F); color: white; }
-  .btn-timer { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+  .btn-on { background: linear-gradient(135deg, #4cb3db, #00b7ff); color: white; }
+  .btn-off { background: linear-gradient(135deg, #ec5252, #f31c1c); color: white; }
+  .btn-timer { background: linear-gradient(135deg, #448fe4, #0077ff); color: white; }
   .timer-row { display: flex; gap: 8px; margin: 10px 0; }
   .timer-row input { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 12px; padding: 8px; text-align: center; }
   .timer-countdown { text-align: center; font-size: 13px; font-weight: 700; color: var(--pending); margin-top: 8px; padding: 6px; background: rgba(255,215,64,0.1); border-radius: 10px; }
@@ -270,8 +270,8 @@
 <div class="header">
   <div class="header-top">
     <div>
-      <h1>🏠 SmartHome Nita</h1>
-      <div class="sub">Premium Dashboard</div>
+      <h1>🏘 SmartHome Control</h1>
+      <div class="sub">Dashboard</div>
     </div>
     <div style="display: flex; gap: 10px;">
       <div class="theme-toggle" onclick="toggleTheme()">
@@ -312,7 +312,7 @@
   <div class="add-schedule">
     <div class="schedule-form-row">
       <input type="time" id="scheduleTime" step="60">
-      <select id="scheduleAction"><option value="ON">🔛 ON</option><option value="OFF">🔴 OFF</option></select>
+      <select id="scheduleAction"><option value="ON">🔵 ON</option><option value="OFF">🔴 OFF</option></select>
     </div>
     <div class="schedule-device-select" id="scheduleDevices">
       <label><input type="checkbox" value="0"> ❄️ Kipas</label>
@@ -421,7 +421,7 @@ function renderRelayGrid() {
       <div class="relay-name">${name}</div>
       <div class="relay-status ${relayState[i] ? 'on' : 'off'}" id="rstatus${i}">${relayState[i] ? '● ON' : '○ OFF'}</div>
       <div class="btn-group">
-        <button class="btn-on" onclick="sendCmd('CH${i}:ON')">🔛 ON</button>
+        <button class="btn-on" onclick="sendCmd('CH${i}:ON')">🔵 ON</button>
         <button class="btn-off" onclick="sendCmd('CH${i}:OFF')">🔴 OFF</button>
       </div>
       <div class="timer-row">
@@ -535,7 +535,7 @@ function renderSchedules() {
   container.innerHTML = schedules.map(s => `
     <div class="schedule-item">
       <div>
-        <div class="schedule-time">⏰ ${s.time} ${s.action === 'ON' ? '🔛 ON' : '🔴 OFF'} ${s.repeat ? '🔄 Berulang' : '📅 Sekali'}</div>
+        <div class="schedule-time">⏰ ${s.time} ${s.action === 'ON' ? '🔵 ON' : '🔴 OFF'} ${s.repeat ? '🔄 Berulang' : '📅 Sekali'}</div>
         <div class="schedule-details">📱 ${s.devices.map(d => relayNames[d]).join(', ')}</div>
       </div>
       <button class="btn-delete-schedule" onclick="deleteSchedule(${s.id})">🗑️ Hapus</button>
